@@ -1,4 +1,4 @@
-# DeepSeek Telegram Bot
+# AiTgsterBot
 
 Telegram bot that forwards user text messages to DeepSeek and replies with the LLM response.
 
