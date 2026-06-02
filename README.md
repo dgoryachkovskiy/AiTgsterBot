@@ -1,6 +1,9 @@
 # AiTgsterBot
 
-Telegram bot that forwards user text messages to DeepSeek and replies with the LLM response.
+Telegram bot for comparing the same DeepSeek prompt with two API control levels:
+
+- no restrictions
+- explicit response format, length limit, and stop sequence
 
 ## Configuration
 
@@ -39,5 +42,8 @@ python bot.py
 ## Notes
 
 - Runtime mode: Telegram polling.
+- Each user message triggers three DeepSeek API calls: uncontrolled answer, controlled answer, and DeepSeek-based comparison.
+- The controlled response uses `response_format={"type":"text"}`, `max_tokens`, `temperature`, and `stop` request parameters.
+- Requests disable thinking mode with `extra_body={"thinking":{"type":"disabled"}}` to return normal message text.
 - Secrets must stay in `.env`.
 - `.env`, `.venv`, and Python cache files are ignored by git.
