@@ -18,6 +18,7 @@ SOLUTION_MAX_TOKENS = 700
 PROMPT_DRAFT_MAX_TOKENS = 350
 COMPARISON_MAX_TOKENS = 700
 DEFAULT_TEMPERATURE = 0.2
+THINKING_DISABLED = {"thinking": {"type": "disabled"}}
 
 
 load_dotenv()
@@ -27,6 +28,7 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 def require_env(name: str) -> str:
@@ -82,6 +84,7 @@ class DeepSeekClient:
     ) -> str:
         response = self.client.chat.completions.create(
             model=self.model,
+            extra_body=THINKING_DISABLED,
             max_tokens=max_tokens,
             temperature=temperature,
             messages=[
@@ -93,7 +96,9 @@ class DeepSeekClient:
         if not response.choices:
             return ""
 
-        return (response.choices[0].message.content or "").strip()
+        message = response.choices[0].message
+        content = message.content or getattr(message, "reasoning_content", None) or ""
+        return content.strip()
 
     def solve_direct(self, task: str) -> str:
         return self.chat(
