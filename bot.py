@@ -14,7 +14,7 @@ SAFE_MESSAGE_LIMIT = 3900
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 DEFAULT_MODEL = "deepseek-v4-flash"
 
-TEMPERATURES = (0.0, 0.7, 1.2)
+TEMPERATURES = (0.0, 0.7, 1.2, 2.0)
 THINKING_DISABLED = {"thinking": {"type": "disabled"}}
 
 
@@ -113,8 +113,9 @@ class DeepSeekClient:
                 f"temperature = 0:\n{truncate_for_prompt(answers[0.0])}\n\n"
                 f"temperature = 0.7:\n{truncate_for_prompt(answers[0.7])}\n\n"
                 f"temperature = 1.2:\n{truncate_for_prompt(answers[1.2])}\n\n"
+                f"temperature = 2:\n{truncate_for_prompt(answers[2.0])}\n\n"
                 "Сравни ответы по точности, креативности и разнообразию. "
-                "Сформулируй, для каких задач лучше подходит temperature 0, 0.7 и 1.2. "
+                "Сформулируй, для каких задач лучше подходит temperature 0, 0.7, 1.2 и 2. "
                 "В конце дай короткий итог."
             ),
             temperature=0.2,
@@ -136,6 +137,8 @@ class DeepSeekClient:
             f"{answers[0.7] or 'DeepSeek returned an empty response.'}\n\n"
             "3. temperature = 1.2:\n"
             f"{answers[1.2] or 'DeepSeek returned an empty response.'}\n\n"
+            "4. temperature = 2:\n"
+            f"{answers[2.0] or 'DeepSeek returned an empty response.'}\n\n"
             "Сравнение от DeepSeek:\n"
             f"{comparison or 'DeepSeek returned an empty comparison response.'}"
         )
@@ -148,7 +151,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     del context
     if update.message:
         await update.message.reply_text(
-            "Напишите один запрос. Бот выполнит его через DeepSeek с temperature 0, 0.7 и 1.2, "
+            "Напишите один запрос. Бот выполнит его через DeepSeek с temperature 0, 0.7, 1.2 и 2, "
             "а затем сравнит точность, креативность и разнообразие ответов."
         )
 

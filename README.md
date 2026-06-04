@@ -1,6 +1,6 @@
 # AiTgsterBot
 
-Telegram bot for Day 4 assignment: one DeepSeek prompt, three temperature values, one comparison.
+Telegram bot for Day 4 assignment: one DeepSeek prompt, four temperature values, one comparison.
 
 ## Configuration
 
@@ -45,8 +45,9 @@ The bot sends the same prompt to DeepSeek with:
 1. `temperature = 0`
 2. `temperature = 0.7`
 3. `temperature = 1.2`
+4. `temperature = 2`
 
-Then the bot sends all three answers to DeepSeek for comparison:
+Then the bot sends all four answers to DeepSeek for comparison:
 
 - accuracy
 - creativity
@@ -56,7 +57,7 @@ Then the bot sends all three answers to DeepSeek for comparison:
 ## Notes
 
 - Runtime mode: Telegram polling.
-- One user message triggers four DeepSeek API calls: three answer calls plus one comparison call.
+- One user message triggers five DeepSeek API calls: four answer calls plus one comparison call.
 - Thinking mode is disabled with `extra_body={"thinking":{"type":"disabled"}}` so regular answer text is returned in `message.content`.
 - Secrets must stay in `.env`.
 - `.env`, `.venv`, and Python cache files are ignored by git.
