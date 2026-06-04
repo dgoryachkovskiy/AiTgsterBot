@@ -12,7 +12,7 @@ from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandl
 
 SAFE_MESSAGE_LIMIT = 3900
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
-DEFAULT_MODEL = "deepseek-v4-flash"
+DEFAULT_MODEL = "deepseek-v4-pro"
 
 SOLUTION_MAX_TOKENS = 700
 PROMPT_DRAFT_MAX_TOKENS = 350

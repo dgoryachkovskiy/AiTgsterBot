@@ -15,7 +15,7 @@ Set values:
 ```env
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token
 DEEPSEEK_API_KEY=your_deepseek_api_key
-DEEPSEEK_MODEL=deepseek-v4-flash
+DEEPSEEK_MODEL=deepseek-v4-pro
 ```
 
 ## Run
