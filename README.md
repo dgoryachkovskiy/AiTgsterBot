@@ -54,6 +54,8 @@ Then the bot sends all four answers to DeepSeek for comparison:
 - diversity
 - best task types for each temperature setting
 
+The bot sends each temperature result to Telegram immediately after that API call finishes. The comparison is sent last.
+
 ## Notes
 
 - Runtime mode: Telegram polling.

@@ -108,39 +108,17 @@ class DeepSeekClient:
                 "Then explain which tasks fit each temperature setting."
             ),
             (
-                "Один и тот же запрос был выполнен через API DeepSeek с разными temperature.\n\n"
-                f"Исходный запрос:\n{prompt}\n\n"
+                "One prompt was executed through the DeepSeek API with different temperature values.\n\n"
+                f"Original prompt:\n{prompt}\n\n"
                 f"temperature = 0:\n{truncate_for_prompt(answers[0.0])}\n\n"
                 f"temperature = 0.7:\n{truncate_for_prompt(answers[0.7])}\n\n"
                 f"temperature = 1.2:\n{truncate_for_prompt(answers[1.2])}\n\n"
                 f"temperature = 2:\n{truncate_for_prompt(answers[2.0])}\n\n"
-                "Сравни ответы по точности, креативности и разнообразию. "
-                "Сформулируй, для каких задач лучше подходит temperature 0, 0.7, 1.2 и 2. "
-                "В конце дай короткий итог."
+                "Compare the answers in Russian by accuracy, creativity, and diversity. "
+                "Explain which tasks are best for temperature 0, 0.7, 1.2, and 2. "
+                "End with a short conclusion."
             ),
             temperature=0.2,
-        )
-
-    def run_day4_temperature_experiment(self, prompt: str) -> str:
-        answers = {
-            temperature: self.answer_with_temperature(prompt, temperature)
-            for temperature in TEMPERATURES
-        }
-        comparison = self.compare_temperature_answers(prompt, answers)
-
-        return (
-            "День 4. Температура через API DeepSeek\n\n"
-            f"Запрос:\n{prompt}\n\n"
-            "1. temperature = 0:\n"
-            f"{answers[0.0] or 'DeepSeek returned an empty response.'}\n\n"
-            "2. temperature = 0.7:\n"
-            f"{answers[0.7] or 'DeepSeek returned an empty response.'}\n\n"
-            "3. temperature = 1.2:\n"
-            f"{answers[1.2] or 'DeepSeek returned an empty response.'}\n\n"
-            "4. temperature = 2:\n"
-            f"{answers[2.0] or 'DeepSeek returned an empty response.'}\n\n"
-            "Сравнение от DeepSeek:\n"
-            f"{comparison or 'DeepSeek returned an empty comparison response.'}"
         )
 
 
@@ -151,9 +129,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     del context
     if update.message:
         await update.message.reply_text(
-            "Напишите один запрос. Бот выполнит его через DeepSeek с temperature 0, 0.7, 1.2 и 2, "
-            "а затем сравнит точность, креативность и разнообразие ответов."
+            "Напишите один запрос. Бот последовательно выполнит его через DeepSeek с temperature 0, 0.7, 1.2 и 2, "
+            "потом сравнит точность, креативность и разнообразие ответов."
         )
+
+
+async def reply_long(update: Update, text: str) -> None:
+    if not update.message:
+        return
+
+    for part in split_telegram_message(text):
+        await update.message.reply_text(part)
 
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -165,10 +151,28 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await update.message.reply_text("Отправьте непустой запрос.")
         return
 
-    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
-
     try:
-        answer = await asyncio.to_thread(deepseek.run_day4_temperature_experiment, prompt)
+        await reply_long(update, f"День 4. Температура через API DeepSeek\n\nЗапрос:\n{prompt}")
+
+        answers: dict[float, str] = {}
+        for index, temperature in enumerate(TEMPERATURES, start=1):
+            await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
+            answer = await asyncio.to_thread(deepseek.answer_with_temperature, prompt, temperature)
+            answers[temperature] = answer
+            await reply_long(
+                update,
+                (
+                    f"{index}. temperature = {temperature:g}:\n"
+                    f"{answer or 'DeepSeek returned an empty response.'}"
+                ),
+            )
+
+        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
+        comparison = await asyncio.to_thread(deepseek.compare_temperature_answers, prompt, answers)
+        await reply_long(
+            update,
+            f"Сравнение от DeepSeek:\n{comparison or 'DeepSeek returned an empty comparison response.'}",
+        )
     except AuthenticationError:
         logger.exception("DeepSeek authentication failed")
         await update.message.reply_text("Ошибка авторизации DeepSeek. Проверьте DEEPSEEK_API_KEY.")
@@ -189,9 +193,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         logger.exception("Unexpected bot error")
         await update.message.reply_text("Произошла неожиданная ошибка. Попробуйте еще раз.")
         return
-
-    for part in split_telegram_message(answer):
-        await update.message.reply_text(part)
 
 
 def main() -> None:
