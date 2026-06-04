@@ -12,11 +12,8 @@ from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandl
 
 SAFE_MESSAGE_LIMIT = 3900
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
-DEFAULT_MODEL = "deepseek-v4-pro"
+DEFAULT_MODEL = "deepseek-v4-flash"
 
-SOLUTION_MAX_TOKENS = 700
-PROMPT_DRAFT_MAX_TOKENS = 350
-COMPARISON_MAX_TOKENS = 700
 DEFAULT_TEMPERATURE = 0.2
 THINKING_DISABLED = {"thinking": {"type": "disabled"}}
 
@@ -79,14 +76,18 @@ class DeepSeekClient:
         self,
         system_prompt: str,
         user_prompt: str,
-        max_tokens: int = SOLUTION_MAX_TOKENS,
+        max_tokens: int | None = None,
         temperature: float = DEFAULT_TEMPERATURE,
     ) -> str:
+        request_options = {}
+        if max_tokens is not None:
+            request_options["max_tokens"] = max_tokens
+
         response = self.client.chat.completions.create(
             model=self.model,
             extra_body=THINKING_DISABLED,
-            max_tokens=max_tokens,
             temperature=temperature,
+            **request_options,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -120,7 +121,6 @@ class DeepSeekClient:
                 "Return only the prompt text."
             ),
             f"Задача:\n{task}",
-            max_tokens=PROMPT_DRAFT_MAX_TOKENS,
         )
 
     def solve_with_generated_prompt(self, task: str) -> tuple[str, str]:
@@ -176,7 +176,6 @@ class DeepSeekClient:
                 "Сравни: отличаются ли ответы, где больше точности, где больше риска ошибки. "
                 "В конце выбери самый точный способ."
             ),
-            max_tokens=COMPARISON_MAX_TOKENS,
         )
 
     def run_day3_reasoning_experiment(self, task: str) -> str:
