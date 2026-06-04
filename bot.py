@@ -14,7 +14,7 @@ SAFE_MESSAGE_LIMIT = 3900
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 DEFAULT_MODEL = "deepseek-v4-flash"
 
-DEFAULT_TEMPERATURE = 0.2
+TEMPERATURES = (0.0, 0.7, 1.2)
 THINKING_DISABLED = {"thinking": {"type": "disabled"}}
 
 
@@ -58,7 +58,7 @@ def split_telegram_message(text: str, limit: int = SAFE_MESSAGE_LIMIT) -> Iterab
     return chunks
 
 
-def truncate_for_prompt(text: str, limit: int = 2000) -> str:
+def truncate_for_prompt(text: str, limit: int = 2200) -> str:
     if len(text) <= limit:
         return text
     return f"{text[:limit].rstrip()}\n...[truncated]"
@@ -72,22 +72,11 @@ class DeepSeekClient:
             base_url=DEEPSEEK_BASE_URL,
         )
 
-    def chat(
-        self,
-        system_prompt: str,
-        user_prompt: str,
-        max_tokens: int | None = None,
-        temperature: float = DEFAULT_TEMPERATURE,
-    ) -> str:
-        request_options = {}
-        if max_tokens is not None:
-            request_options["max_tokens"] = max_tokens
-
+    def chat(self, system_prompt: str, user_prompt: str, temperature: float) -> str:
         response = self.client.chat.completions.create(
             model=self.model,
             extra_body=THINKING_DISABLED,
             temperature=temperature,
-            **request_options,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -101,110 +90,52 @@ class DeepSeekClient:
         content = message.content or getattr(message, "reasoning_content", None) or ""
         return content.strip()
 
-    def solve_direct(self, task: str) -> str:
-        return self.chat(
-            "You are a helpful assistant. Answer in Russian. Give the final solution clearly.",
-            task,
-        )
-
-    def solve_step_by_step(self, task: str) -> str:
-        return self.chat(
-            "You are a helpful assistant. Answer in Russian.",
-            f"Решай пошагово.\n\nЗадача:\n{task}",
-        )
-
-    def draft_solution_prompt(self, task: str) -> str:
+    def answer_with_temperature(self, prompt: str, temperature: float) -> str:
         return self.chat(
             (
-                "You are a prompt engineer. Answer in Russian. "
-                "Create one strong prompt for another LLM to solve the task accurately. "
-                "Return only the prompt text."
+                "You are a helpful assistant. Answer in Russian. "
+                "Answer the user request directly and clearly."
             ),
-            f"Задача:\n{task}",
+            prompt,
+            temperature=temperature,
         )
 
-    def solve_with_generated_prompt(self, task: str) -> tuple[str, str]:
-        generated_prompt = self.draft_solution_prompt(task)
-        if not generated_prompt:
-            return "", ""
-
-        solution = self.chat(
-            "You are a helpful assistant. Follow the user prompt exactly. Answer in Russian.",
-            generated_prompt,
-        )
-        return generated_prompt, solution
-
-    def solve_with_experts(self, task: str) -> str:
+    def compare_temperature_answers(self, prompt: str, answers: dict[float, str]) -> str:
         return self.chat(
             (
-                "You are a panel of three experts answering in Russian: "
-                "Analyst, Engineer, Critic. Each expert must give a solution. "
-                "Then add one short joint conclusion."
+                "You compare LLM answers in Russian. "
+                "Compare accuracy, creativity, and diversity. "
+                "Then explain which tasks fit each temperature setting."
             ),
             (
-                "Решите одну задачу группой экспертов.\n\n"
-                "Формат:\n"
-                "Аналитик: ...\n"
-                "Инженер: ...\n"
-                "Критик: ...\n"
-                "Общий вывод: ...\n\n"
-                f"Задача:\n{task}"
+                "Один и тот же запрос был выполнен через API DeepSeek с разными temperature.\n\n"
+                f"Исходный запрос:\n{prompt}\n\n"
+                f"temperature = 0:\n{truncate_for_prompt(answers[0.0])}\n\n"
+                f"temperature = 0.7:\n{truncate_for_prompt(answers[0.7])}\n\n"
+                f"temperature = 1.2:\n{truncate_for_prompt(answers[1.2])}\n\n"
+                "Сравни ответы по точности, креативности и разнообразию. "
+                "Сформулируй, для каких задач лучше подходит temperature 0, 0.7 и 1.2. "
+                "В конце дай короткий итог."
             ),
+            temperature=0.2,
         )
 
-    def compare_solutions(
-        self,
-        task: str,
-        direct: str,
-        step_by_step: str,
-        generated_prompt_solution: str,
-        experts: str,
-    ) -> str:
-        return self.chat(
-            (
-                "You compare LLM solutions in Russian. "
-                "Be concrete. Identify differences and choose the most accurate method."
-            ),
-            (
-                "Сравни четыре способа решения одной задачи.\n\n"
-                f"Задача:\n{task}\n\n"
-                f"1. Прямой ответ:\n{truncate_for_prompt(direct)}\n\n"
-                f"2. Инструкция 'решай пошагово':\n{truncate_for_prompt(step_by_step)}\n\n"
-                f"3. Сначала сгенерирован промпт, затем получено решение:\n"
-                f"{truncate_for_prompt(generated_prompt_solution)}\n\n"
-                f"4. Группа экспертов:\n{truncate_for_prompt(experts)}\n\n"
-                "Сравни: отличаются ли ответы, где больше точности, где больше риска ошибки. "
-                "В конце выбери самый точный способ."
-            ),
-        )
-
-    def run_day3_reasoning_experiment(self, task: str) -> str:
-        direct = self.solve_direct(task)
-        step_by_step = self.solve_step_by_step(task)
-        generated_prompt, generated_prompt_solution = self.solve_with_generated_prompt(task)
-        experts = self.solve_with_experts(task)
-        comparison = self.compare_solutions(
-            task=task,
-            direct=direct,
-            step_by_step=step_by_step,
-            generated_prompt_solution=generated_prompt_solution,
-            experts=experts,
-        )
+    def run_day4_temperature_experiment(self, prompt: str) -> str:
+        answers = {
+            temperature: self.answer_with_temperature(prompt, temperature)
+            for temperature in TEMPERATURES
+        }
+        comparison = self.compare_temperature_answers(prompt, answers)
 
         return (
-            "День 3. Разные способы рассуждения через API DeepSeek\n\n"
-            f"Задача:\n{task}\n\n"
-            "1. Прямой ответ без дополнительных инструкций:\n"
-            f"{direct or 'DeepSeek returned an empty response.'}\n\n"
-            "2. Инструкция 'решай пошагово':\n"
-            f"{step_by_step or 'DeepSeek returned an empty response.'}\n\n"
-            "3. Модель сначала составила промпт, затем решила задачу:\n\n"
-            "Сгенерированный промпт:\n"
-            f"{generated_prompt or 'DeepSeek returned an empty prompt.'}\n\n"
-            "Решение по сгенерированному промпту:\n"
-            f"{generated_prompt_solution or 'DeepSeek returned an empty response.'}\n\n"
-            "4. Группа экспертов:\n"
-            f"{experts or 'DeepSeek returned an empty response.'}\n\n"
+            "День 4. Температура через API DeepSeek\n\n"
+            f"Запрос:\n{prompt}\n\n"
+            "1. temperature = 0:\n"
+            f"{answers[0.0] or 'DeepSeek returned an empty response.'}\n\n"
+            "2. temperature = 0.7:\n"
+            f"{answers[0.7] or 'DeepSeek returned an empty response.'}\n\n"
+            "3. temperature = 1.2:\n"
+            f"{answers[1.2] or 'DeepSeek returned an empty response.'}\n\n"
             "Сравнение от DeepSeek:\n"
             f"{comparison or 'DeepSeek returned an empty comparison response.'}"
         )
@@ -217,8 +148,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     del context
     if update.message:
         await update.message.reply_text(
-            "Напишите одну логическую, алгоритмическую или аналитическую задачу. "
-            "Бот решит ее четырьмя способами через DeepSeek и сравнит результаты."
+            "Напишите один запрос. Бот выполнит его через DeepSeek с temperature 0, 0.7 и 1.2, "
+            "а затем сравнит точность, креативность и разнообразие ответов."
         )
 
 
@@ -226,15 +157,15 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if not update.message or not update.message.text:
         return
 
-    task = update.message.text.strip()
-    if not task:
-        await update.message.reply_text("Отправьте непустую задачу.")
+    prompt = update.message.text.strip()
+    if not prompt:
+        await update.message.reply_text("Отправьте непустой запрос.")
         return
 
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
 
     try:
-        answer = await asyncio.to_thread(deepseek.run_day3_reasoning_experiment, task)
+        answer = await asyncio.to_thread(deepseek.run_day4_temperature_experiment, prompt)
     except AuthenticationError:
         logger.exception("DeepSeek authentication failed")
         await update.message.reply_text("Ошибка авторизации DeepSeek. Проверьте DEEPSEEK_API_KEY.")
