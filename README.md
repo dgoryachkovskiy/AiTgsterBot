@@ -1,6 +1,6 @@
 # AiTgsterBot
 
-Telegram bot for Day 4 assignment: one DeepSeek prompt, four temperature values, one comparison.
+Telegram bot for Day 5 assignment: compare one prompt across weak, medium, and strong DeepSeek model configurations.
 
 ## Configuration
 
@@ -17,6 +17,8 @@ TELEGRAM_BOT_TOKEN=your_telegram_bot_token
 DEEPSEEK_API_KEY=your_deepseek_api_key
 DEEPSEEK_MODEL=deepseek-v4-flash
 ```
+
+`DEEPSEEK_MODEL` is kept for compatibility, but Day 5 uses explicit model cases in code.
 
 ## Run
 
@@ -40,26 +42,44 @@ python bot.py
 
 Send one prompt to the bot.
 
-The bot sends the same prompt to DeepSeek with:
+The bot runs the same prompt on three model configurations:
 
-1. `temperature = 0`
-2. `temperature = 0.7`
-3. `temperature = 1.2`
-4. `temperature = 2`
+1. Weak: `deepseek-v4-flash`, non-thinking mode.
+2. Medium: `deepseek-v4-pro`, non-thinking mode.
+3. Strong: `deepseek-v4-pro`, thinking mode.
 
-Then the bot sends all four answers to DeepSeek for comparison:
+For each result the bot sends:
 
-- accuracy
-- creativity
-- diversity
-- best task types for each temperature setting
+- answer text
+- elapsed response time
+- input/output/total token usage
+- cache hit/cache miss token usage
+- estimated USD cost
 
-The bot sends each temperature result to Telegram immediately after that API call finishes. The comparison is sent last.
+Then the bot asks DeepSeek to compare:
+
+- answer quality
+- speed
+- resource usage
+- cost
+
+## Day 5 Deliverable
+
+Format requested by assignment: Video + Code.
+
+- Code: this repository branch `day5`.
+- Video: record Telegram bot run showing one prompt, three model outputs, metrics, final comparison, and source links.
+
+## Sources
+
+- Models & Pricing: https://api-docs.deepseek.com/quick_start/pricing
+- Models List: https://api-docs.deepseek.com/api/list-models/
+- Token Usage: https://api-docs.deepseek.com/quick_start/token_usage
 
 ## Notes
 
 - Runtime mode: Telegram polling.
-- One user message triggers five DeepSeek API calls: four answer calls plus one comparison call.
-- Thinking mode is disabled with `extra_body={"thinking":{"type":"disabled"}}` so regular answer text is returned in `message.content`.
+- One user message triggers four DeepSeek API calls: three model calls plus one comparison call.
+- Prices are estimated from official per-1M-token API rates and response usage.
 - Secrets must stay in `.env`.
 - `.env`, `.venv`, and Python cache files are ignored by git.
