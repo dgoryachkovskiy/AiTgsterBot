@@ -36,6 +36,8 @@ class AgentResponse:
     prompt_tokens: int
     completion_tokens: int
     total_tokens: int
+    prompt_cache_hit_tokens: int
+    prompt_cache_miss_tokens: int
     history_messages: int
 
 
@@ -81,6 +83,7 @@ def format_agent_response(response: AgentResponse) -> str:
         f"Модель: {response.model}\n"
         f"Сообщений в истории: {response.history_messages}\n"
         f"Токены: input={response.prompt_tokens}, output={response.completion_tokens}, total={response.total_tokens}\n\n"
+        f"DeepSeek context cache: hit={response.prompt_cache_hit_tokens}, miss={response.prompt_cache_miss_tokens}\n\n"
         f"Ответ агента:\n{response.answer or 'DeepSeek returned an empty response.'}"
     )
 
@@ -129,6 +132,8 @@ class SimpleDeepSeekAgent:
             prompt_tokens=usage_value(usage, "prompt_tokens"),
             completion_tokens=usage_value(usage, "completion_tokens"),
             total_tokens=usage_value(usage, "total_tokens"),
+            prompt_cache_hit_tokens=usage_value(usage, "prompt_cache_hit_tokens"),
+            prompt_cache_miss_tokens=usage_value(usage, "prompt_cache_miss_tokens"),
             history_messages=len(history) + 2,
         )
 
@@ -168,7 +173,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.message:
         await update.message.reply_text(
             "День 6. Первый агент. Это чат с памятью: агент помнит прошлые сообщения в этом Telegram-чате. "
-            "Команда /reset очищает историю."
+            "История каждый раз передается в DeepSeek messages. Команда /reset очищает историю."
         )
 
 

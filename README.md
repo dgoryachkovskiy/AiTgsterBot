@@ -60,6 +60,10 @@ Agent logic is encapsulated in `SimpleDeepSeekAgent`.
 
 Chat memory is stored in `AgentApp.chat_histories` by Telegram `chat_id`.
 
+DeepSeek `/chat/completions` is stateless, so the server does not keep conversation state. The agent sends previous chat messages inside `messages` on each request, matching the official multi-round conversation guide.
+
+DeepSeek context caching can reduce repeated-prefix cost/latency, but it is cache, not persistent memory. The bot displays `prompt_cache_hit_tokens` and `prompt_cache_miss_tokens` from API usage.
+
 Telegram handlers do not call DeepSeek directly. They call:
 
 ```python
@@ -71,6 +75,11 @@ Use `/reset` to clear history for the current Telegram chat.
 ## Result
 
 The agent accepts chat requests, remembers previous questions in the same Telegram chat, and correctly calls LLM through DeepSeek API.
+
+## Sources
+
+- Multi-round Conversation: https://api-docs.deepseek.com/guides/multi_round_chat
+- Context Caching: https://api-docs.deepseek.com/guides/kv_cache
 
 ## Notes
 
