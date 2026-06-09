@@ -76,10 +76,7 @@ def usage_value(usage: object, name: str) -> int:
 
 
 def format_agent_response(response: AgentResponse) -> str:
-    return (
-        f"Запрос:\n{response.user_request}\n\n"
-        f"Ответ:\n{response.answer or 'DeepSeek returned an empty response.'}"
-    )
+    return response.answer or "DeepSeek returned an empty response."
 
 
 class SimpleDeepSeekAgent:
