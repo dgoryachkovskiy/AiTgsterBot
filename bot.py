@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import os
-import time
 from dataclasses import dataclass
 from typing import Iterable
 
@@ -14,15 +13,9 @@ from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandl
 
 SAFE_MESSAGE_LIMIT = 3900
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
+DEFAULT_MODEL = "deepseek-v4-flash"
 THINKING_DISABLED = {"thinking": {"type": "disabled"}}
-THINKING_ENABLED = {"thinking": {"type": "enabled"}}
-
-SOURCE_LINKS = (
-    "Источники:\n"
-    "- Models & Pricing: https://api-docs.deepseek.com/quick_start/pricing\n"
-    "- Models List: https://api-docs.deepseek.com/api/list-models/\n"
-    "- Token Usage: https://api-docs.deepseek.com/quick_start/token_usage"
-)
+MAX_HISTORY_MESSAGES = 20
 
 
 load_dotenv()
@@ -36,54 +29,14 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 @dataclass(frozen=True)
-class ModelCase:
-    label: str
-    model: str
-    thinking: bool
-    input_cache_hit_price_per_m: float
-    input_cache_miss_price_per_m: float
-    output_price_per_m: float
-
-
-@dataclass(frozen=True)
-class ModelRunResult:
-    case: ModelCase
+class AgentResponse:
+    user_request: str
     answer: str
-    elapsed_seconds: float
+    model: str
     prompt_tokens: int
     completion_tokens: int
     total_tokens: int
-    prompt_cache_hit_tokens: int
-    prompt_cache_miss_tokens: int
-    estimated_cost_usd: float
-
-
-MODEL_CASES = (
-    ModelCase(
-        label="Слабая модель: DeepSeek V4 Flash, non-thinking",
-        model="deepseek-v4-flash",
-        thinking=False,
-        input_cache_hit_price_per_m=0.0028,
-        input_cache_miss_price_per_m=0.14,
-        output_price_per_m=0.28,
-    ),
-    ModelCase(
-        label="Средняя модель: DeepSeek V4 Pro, non-thinking",
-        model="deepseek-v4-pro",
-        thinking=False,
-        input_cache_hit_price_per_m=0.003625,
-        input_cache_miss_price_per_m=0.435,
-        output_price_per_m=0.87,
-    ),
-    ModelCase(
-        label="Сильная модель: DeepSeek V4 Pro, thinking",
-        model="deepseek-v4-pro",
-        thinking=True,
-        input_cache_hit_price_per_m=0.003625,
-        input_cache_miss_price_per_m=0.435,
-        output_price_per_m=0.87,
-    ),
-)
+    history_messages: int
 
 
 def require_env(name: str) -> str:
@@ -116,70 +69,51 @@ def split_telegram_message(text: str, limit: int = SAFE_MESSAGE_LIMIT) -> Iterab
     return chunks
 
 
-def truncate_for_prompt(text: str, limit: int = 2200) -> str:
-    if len(text) <= limit:
-        return text
-    return f"{text[:limit].rstrip()}\n...[truncated]"
-
-
 def usage_value(usage: object, name: str) -> int:
     return int(getattr(usage, name, 0) or 0)
 
 
-def calculate_cost_usd(case: ModelCase, usage: object) -> float:
-    prompt_tokens = usage_value(usage, "prompt_tokens")
-    completion_tokens = usage_value(usage, "completion_tokens")
-    cache_hit = usage_value(usage, "prompt_cache_hit_tokens")
-    cache_miss = usage_value(usage, "prompt_cache_miss_tokens")
-
-    if cache_hit == 0 and cache_miss == 0:
-        cache_miss = prompt_tokens
-
+def format_agent_response(response: AgentResponse) -> str:
     return (
-        cache_hit * case.input_cache_hit_price_per_m
-        + cache_miss * case.input_cache_miss_price_per_m
-        + completion_tokens * case.output_price_per_m
-    ) / 1_000_000
-
-
-def format_cost(cost: float) -> str:
-    return f"${cost:.8f}"
-
-
-def format_model_result(result: ModelRunResult) -> str:
-    return (
-        f"{result.case.label}\n"
-        f"model={result.case.model}, thinking={'on' if result.case.thinking else 'off'}\n"
-        f"Время ответа: {result.elapsed_seconds:.2f} сек\n"
-        f"Токены: input={result.prompt_tokens}, output={result.completion_tokens}, total={result.total_tokens}\n"
-        f"Cache: hit={result.prompt_cache_hit_tokens}, miss={result.prompt_cache_miss_tokens}\n"
-        f"Оценка стоимости: {format_cost(result.estimated_cost_usd)}\n\n"
-        f"Ответ:\n{result.answer or 'DeepSeek returned an empty response.'}"
+        "День 6. Первый агент\n\n"
+        f"Запрос пользователя:\n{response.user_request}\n\n"
+        f"Агент: SimpleDeepSeekAgent\n"
+        f"Модель: {response.model}\n"
+        f"Сообщений в истории: {response.history_messages}\n"
+        f"Токены: input={response.prompt_tokens}, output={response.completion_tokens}, total={response.total_tokens}\n\n"
+        f"Ответ агента:\n{response.answer or 'DeepSeek returned an empty response.'}"
     )
 
 
-class DeepSeekClient:
-    def __init__(self) -> None:
-        self.client = OpenAI(
-            api_key=require_env("DEEPSEEK_API_KEY"),
-            base_url=DEEPSEEK_BASE_URL,
+class SimpleDeepSeekAgent:
+    """
+    Отдельная сущность агента.
+    Инкапсулирует историю чата, прием запроса, вызов LLM через API, извлечение ответа и метрик.
+    Telegram-бот только передает запрос агенту и выводит результат.
+    """
+
+    def __init__(self, client: OpenAI, model: str) -> None:
+        self.client = client
+        self.model = model
+        self.system_prompt = (
+            "You are SimpleDeepSeekAgent. Answer in Russian. "
+            "Be clear, useful, and concise. If the user asks for code, include code. "
+            "Use previous chat messages as context."
         )
 
-    def run_model_case(self, prompt: str, case: ModelCase) -> ModelRunResult:
-        start_time = time.perf_counter()
+    def handle(self, user_request: str, history: list[dict[str, str]]) -> AgentResponse:
+        messages = [
+            {"role": "system", "content": self.system_prompt},
+            *history[-MAX_HISTORY_MESSAGES:],
+            {"role": "user", "content": user_request},
+        ]
+
         response = self.client.chat.completions.create(
-            model=case.model,
-            extra_body=THINKING_ENABLED if case.thinking else THINKING_DISABLED,
+            model=self.model,
+            extra_body=THINKING_DISABLED,
             temperature=0.2,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a helpful assistant. Answer in Russian. Be accurate and clear.",
-                },
-                {"role": "user", "content": prompt},
-            ],
+            messages=messages,
         )
-        elapsed_seconds = time.perf_counter() - start_time
 
         if response.choices:
             message = response.choices[0].message
@@ -188,78 +122,63 @@ class DeepSeekClient:
             answer = ""
 
         usage = response.usage
-        prompt_tokens = usage_value(usage, "prompt_tokens")
-        completion_tokens = usage_value(usage, "completion_tokens")
-        total_tokens = usage_value(usage, "total_tokens")
-        prompt_cache_hit_tokens = usage_value(usage, "prompt_cache_hit_tokens")
-        prompt_cache_miss_tokens = usage_value(usage, "prompt_cache_miss_tokens")
-
-        return ModelRunResult(
-            case=case,
+        return AgentResponse(
+            user_request=user_request,
             answer=answer.strip(),
-            elapsed_seconds=elapsed_seconds,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            total_tokens=total_tokens,
-            prompt_cache_hit_tokens=prompt_cache_hit_tokens,
-            prompt_cache_miss_tokens=prompt_cache_miss_tokens,
-            estimated_cost_usd=calculate_cost_usd(case, usage),
+            model=self.model,
+            prompt_tokens=usage_value(usage, "prompt_tokens"),
+            completion_tokens=usage_value(usage, "completion_tokens"),
+            total_tokens=usage_value(usage, "total_tokens"),
+            history_messages=len(history) + 2,
         )
 
-    def compare_model_results(self, prompt: str, results: list[ModelRunResult]) -> str:
-        result_text = "\n\n".join(
-            (
-                f"{result.case.label}\n"
-                f"time={result.elapsed_seconds:.2f}s, "
-                f"tokens={result.total_tokens}, cost={format_cost(result.estimated_cost_usd)}\n"
-                f"answer:\n{truncate_for_prompt(result.answer)}"
-            )
-            for result in results
+
+class AgentApp:
+    def __init__(self) -> None:
+        model = os.getenv("DEEPSEEK_MODEL", DEFAULT_MODEL)
+        client = OpenAI(
+            api_key=require_env("DEEPSEEK_API_KEY"),
+            base_url=DEEPSEEK_BASE_URL,
         )
+        self.agent = SimpleDeepSeekAgent(client=client, model=model)
+        self.chat_histories: dict[int, list[dict[str, str]]] = {}
 
-        response = self.client.chat.completions.create(
-            model="deepseek-v4-pro",
-            extra_body=THINKING_DISABLED,
-            temperature=0.2,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You compare model outputs in Russian. Compare quality, speed, and resource usage. "
-                        "Give a short practical conclusion."
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": (
-                        "Один и тот же запрос был выполнен на слабой, средней и сильной модели.\n\n"
-                        f"Запрос:\n{prompt}\n\n"
-                        f"{result_text}\n\n"
-                        "Сравни качество ответов, скорость, ресурсоемкость и стоимость. "
-                        "В конце дай короткий вывод о различиях между моделями."
-                    ),
-                },
-            ],
+    def process_user_request(self, chat_id: int, user_request: str) -> AgentResponse:
+        history = self.chat_histories.setdefault(chat_id, [])
+        response = self.agent.handle(user_request=user_request, history=history)
+        history.extend(
+            [
+                {"role": "user", "content": user_request},
+                {"role": "assistant", "content": response.answer},
+            ]
         )
+        if len(history) > MAX_HISTORY_MESSAGES:
+            del history[:-MAX_HISTORY_MESSAGES]
+        return response
 
-        if not response.choices:
-            return ""
-
-        message = response.choices[0].message
-        content = message.content or getattr(message, "reasoning_content", None) or ""
-        return content.strip()
+    def clear_history(self, chat_id: int) -> None:
+        self.chat_histories.pop(chat_id, None)
 
 
-deepseek = DeepSeekClient()
+agent_app = AgentApp()
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     del context
     if update.message:
         await update.message.reply_text(
-            "Напишите один запрос. Бот выполнит его на слабой, средней и сильной модели DeepSeek, "
-            "замерит время, токены, стоимость и сравнит качество."
+            "День 6. Первый агент. Это чат с памятью: агент помнит прошлые сообщения в этом Telegram-чате. "
+            "Команда /reset очищает историю."
         )
+
+
+async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    del context
+    if not update.effective_chat or not update.message:
+        return
+
+    agent_app.clear_history(update.effective_chat.id)
+    await update.message.reply_text("История чата очищена.")
 
 
 async def reply_long(update: Update, text: str) -> None:
@@ -274,27 +193,20 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if not update.message or not update.message.text:
         return
 
-    prompt = update.message.text.strip()
-    if not prompt:
+    user_request = update.message.text.strip()
+    if not user_request:
         await update.message.reply_text("Отправьте непустой запрос.")
         return
 
+    if not update.effective_chat:
+        await update.message.reply_text("Не удалось определить chat_id.")
+        return
+
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
+
     try:
-        await reply_long(update, f"День 5. Версии моделей через API DeepSeek\n\nЗапрос:\n{prompt}")
-
-        results: list[ModelRunResult] = []
-        for case in MODEL_CASES:
-            await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
-            result = await asyncio.to_thread(deepseek.run_model_case, prompt, case)
-            results.append(result)
-            await reply_long(update, format_model_result(result))
-
-        await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=ChatAction.TYPING)
-        comparison = await asyncio.to_thread(deepseek.compare_model_results, prompt, results)
-        await reply_long(
-            update,
-            f"Сравнение от DeepSeek:\n{comparison or 'DeepSeek returned an empty comparison response.'}\n\n{SOURCE_LINKS}",
-        )
+        response = await asyncio.to_thread(agent_app.process_user_request, update.effective_chat.id, user_request)
+        await reply_long(update, format_agent_response(response))
     except AuthenticationError:
         logger.exception("DeepSeek authentication failed")
         await update.message.reply_text("Ошибка авторизации DeepSeek. Проверьте DEEPSEEK_API_KEY.")
@@ -322,6 +234,7 @@ def main() -> None:
 
     application = Application.builder().token(telegram_token).build()
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("reset", reset))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
     logger.info("Bot is running in polling mode")

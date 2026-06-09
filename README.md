@@ -1,6 +1,6 @@
 # AiTgsterBot
 
-Telegram bot for Day 5 assignment: compare one prompt across weak, medium, and strong DeepSeek model configurations.
+Telegram bot for Day 6 assignment: first simple LLM chat agent with memory.
 
 ## Configuration
 
@@ -17,8 +17,6 @@ TELEGRAM_BOT_TOKEN=your_telegram_bot_token
 DEEPSEEK_API_KEY=your_deepseek_api_key
 DEEPSEEK_MODEL=deepseek-v4-flash
 ```
-
-`DEEPSEEK_MODEL` is kept for compatibility, but Day 5 uses explicit model cases in code.
 
 ## Run
 
@@ -40,46 +38,45 @@ python bot.py
 
 ## Behavior
 
-Send one prompt to the bot.
+Send messages to the Telegram bot as a chat.
 
-The bot runs the same prompt on three model configurations:
+The bot passes the request to `SimpleDeepSeekAgent`.
 
-1. Weak: `deepseek-v4-flash`, non-thinking mode.
-2. Medium: `deepseek-v4-pro`, non-thinking mode.
-3. Strong: `deepseek-v4-pro`, thinking mode.
+The agent:
 
-For each result the bot sends:
+1. accepts the user request;
+2. loads previous messages for the current Telegram chat;
+3. builds the LLM request with chat history;
+4. calls DeepSeek through the API;
+5. extracts answer text and token usage;
+6. saves user and assistant messages back to memory;
+7. returns an `AgentResponse`.
 
-- answer text
-- elapsed response time
-- input/output/total token usage
-- cache hit/cache miss token usage
-- estimated USD cost
+The Telegram interface only displays the agent result.
 
-Then the bot asks DeepSeek to compare:
+## Agent Boundary
 
-- answer quality
-- speed
-- resource usage
-- cost
+Agent logic is encapsulated in `SimpleDeepSeekAgent`.
 
-## Day 5 Deliverable
+Chat memory is stored in `AgentApp.chat_histories` by Telegram `chat_id`.
 
-Format requested by assignment: Video + Code.
+Telegram handlers do not call DeepSeek directly. They call:
 
-- Code: this repository branch `day5`.
-- Video: record Telegram bot run showing one prompt, three model outputs, metrics, final comparison, and source links.
+```python
+agent_app.process_user_request(chat_id, user_request)
+```
 
-## Sources
+Use `/reset` to clear history for the current Telegram chat.
 
-- Models & Pricing: https://api-docs.deepseek.com/quick_start/pricing
-- Models List: https://api-docs.deepseek.com/api/list-models/
-- Token Usage: https://api-docs.deepseek.com/quick_start/token_usage
+## Result
+
+The agent accepts chat requests, remembers previous questions in the same Telegram chat, and correctly calls LLM through DeepSeek API.
 
 ## Notes
 
 - Runtime mode: Telegram polling.
-- One user message triggers four DeepSeek API calls: three model calls plus one comparison call.
-- Prices are estimated from official per-1M-token API rates and response usage.
+- Default model: `deepseek-v4-flash`.
+- Memory window: last 20 role messages per Telegram chat.
+- Thinking mode disabled for stable text in `message.content`.
 - Secrets must stay in `.env`.
 - `.env`, `.venv`, and Python cache files are ignored by git.
