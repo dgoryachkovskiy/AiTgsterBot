@@ -52,7 +52,7 @@ The agent:
 6. saves user and assistant messages back to memory;
 7. returns an `AgentResponse`.
 
-The Telegram interface only displays the agent result.
+The Telegram interface displays only the user request and the agent answer.
 
 ## Agent Boundary
 

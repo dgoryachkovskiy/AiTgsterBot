@@ -77,14 +77,8 @@ def usage_value(usage: object, name: str) -> int:
 
 def format_agent_response(response: AgentResponse) -> str:
     return (
-        "День 6. Первый агент\n\n"
-        f"Запрос пользователя:\n{response.user_request}\n\n"
-        f"Агент: SimpleDeepSeekAgent\n"
-        f"Модель: {response.model}\n"
-        f"Сообщений в истории: {response.history_messages}\n"
-        f"Токены: input={response.prompt_tokens}, output={response.completion_tokens}, total={response.total_tokens}\n\n"
-        f"DeepSeek context cache: hit={response.prompt_cache_hit_tokens}, miss={response.prompt_cache_miss_tokens}\n\n"
-        f"Ответ агента:\n{response.answer or 'DeepSeek returned an empty response.'}"
+        f"Запрос:\n{response.user_request}\n\n"
+        f"Ответ:\n{response.answer or 'DeepSeek returned an empty response.'}"
     )
 
 
