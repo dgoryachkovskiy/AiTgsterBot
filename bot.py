@@ -3,7 +3,7 @@ import math
 import json
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from threading import RLock
 from typing import Iterable
@@ -24,6 +24,9 @@ DEFAULT_HISTORY_FILE = "chat_history.json"
 DEFAULT_MAX_STORED_MESSAGES = 200
 DEFAULT_MODEL_CONTEXT_LIMIT = 1_000_000
 DEFAULT_MAX_OUTPUT_TOKENS = 1024
+DEFAULT_RECENT_MESSAGES = 10
+DEFAULT_SUMMARY_BATCH_SIZE = 10
+DEFAULT_MAX_SUMMARY_CHARS = 4000
 TOKEN_OVERHEAD_PER_MESSAGE = 4
 
 MODEL_PRICING_USD_PER_1M = {
@@ -71,6 +74,10 @@ class AgentResponse:
     model: str
     history_messages: int
     token_stats: TokenStats
+    summary_tokens: int = 0
+    recent_messages: int = 0
+    compressed_messages: int = 0
+    summary_chars: int = 0
 
 
 def require_env(name: str) -> str:
@@ -186,31 +193,66 @@ class JsonHistoryStore:
         self.path = path
         self.max_messages = max_messages
         self._lock = RLock()
-        self._histories = self._load()
+        self._chats = self._load()
+
+    def get_context(self, chat_id: int) -> tuple[str, list[dict[str, str]], int]:
+        with self._lock:
+            chat = self._chat(chat_id)
+            return str(chat["summary"]), list(chat["messages"]), int(chat["compressed_messages"])
 
     def get_history(self, chat_id: int) -> list[dict[str, str]]:
-        with self._lock:
-            return list(self._histories.get(chat_id, []))
+        summary, messages, _ = self.get_context(chat_id)
+        history = list(messages)
+        if summary:
+            history.insert(
+                0,
+                {
+                    "role": "system",
+                    "content": "Compressed summary of earlier dialog:\n" + summary,
+                },
+            )
+        return history
 
     def append_exchange(self, chat_id: int, user_request: str, answer: str) -> None:
         with self._lock:
-            history = self._histories.setdefault(chat_id, [])
-            history.extend(
+            chat = self._chat(chat_id)
+            messages = chat["messages"]
+            messages.extend(
                 [
                     {"role": "user", "content": user_request},
                     {"role": "assistant", "content": answer},
                 ]
             )
-            if len(history) > self.max_messages:
-                del history[:-self.max_messages]
+            if len(messages) > self.max_messages:
+                del messages[:-self.max_messages]
+            self._save()
+
+    def replace_context(
+        self,
+        chat_id: int,
+        summary: str,
+        recent_messages: list[dict[str, str]],
+        compressed_count: int,
+    ) -> None:
+        with self._lock:
+            chat = self._chat(chat_id)
+            chat["summary"] = summary
+            chat["messages"] = recent_messages
+            chat["compressed_messages"] = int(chat["compressed_messages"]) + compressed_count
             self._save()
 
     def clear_history(self, chat_id: int) -> None:
         with self._lock:
-            self._histories.pop(chat_id, None)
+            self._chats.pop(str(chat_id), None)
             self._save()
 
-    def _load(self) -> dict[int, list[dict[str, str]]]:
+    def _chat(self, chat_id: int) -> dict[str, object]:
+        return self._chats.setdefault(
+            str(chat_id),
+            {"summary": "", "messages": [], "compressed_messages": 0},
+        )
+
+    def _load(self) -> dict[str, dict[str, object]]:
         if not self.path.exists():
             return {}
 
@@ -224,24 +266,30 @@ class JsonHistoryStore:
             logger.warning("Chat history file %s has invalid format", self.path)
             return {}
 
-        chats = raw.get("chats", raw)
-        if not isinstance(chats, dict):
+        raw_chats = raw.get("chats", raw)
+        if not isinstance(raw_chats, dict):
             logger.warning("Chat history file %s has invalid chats section", self.path)
             return {}
 
-        histories: dict[int, list[dict[str, str]]] = {}
-        for raw_chat_id, raw_messages in chats.items():
-            try:
-                chat_id = int(raw_chat_id)
-            except (TypeError, ValueError):
-                continue
+        chats: dict[str, dict[str, object]] = {}
+        for raw_chat_id, raw_value in raw_chats.items():
+            if isinstance(raw_value, list):
+                messages = self._sanitize_messages(raw_value)
+                chats[str(raw_chat_id)] = {
+                    "summary": "",
+                    "messages": messages[-self.max_messages :],
+                    "compressed_messages": 0,
+                }
+            elif isinstance(raw_value, dict):
+                messages = self._sanitize_messages(raw_value.get("messages", []))
+                chats[str(raw_chat_id)] = {
+                    "summary": raw_value.get("summary", "") if isinstance(raw_value.get("summary", ""), str) else "",
+                    "messages": messages[-self.max_messages :],
+                    "compressed_messages": int(raw_value.get("compressed_messages", 0) or 0),
+                }
 
-            messages = self._sanitize_messages(raw_messages)
-            if messages:
-                histories[chat_id] = messages[-self.max_messages :]
-
-        logger.info("Loaded chat history for %s chats from %s", len(histories), self.path)
-        return histories
+        logger.info("Loaded chat history for %s chats from %s", len(chats), self.path)
+        return chats
 
     def _sanitize_messages(self, raw_messages: object) -> list[dict[str, str]]:
         if not isinstance(raw_messages, list):
@@ -261,12 +309,7 @@ class JsonHistoryStore:
 
     def _save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        data = {
-            "chats": {
-                str(chat_id): messages
-                for chat_id, messages in sorted(self._histories.items(), key=lambda item: item[0])
-            }
-        }
+        data = {"chats": self._chats}
         temp_path = self.path.with_name(f"{self.path.name}.tmp")
         temp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
         os.replace(temp_path, self.path)
@@ -359,6 +402,26 @@ class SimpleDeepSeekAgent:
             ),
         )
 
+    def summarize(self, existing_summary: str, messages: list[dict[str, str]], max_summary_chars: int) -> str:
+        transcript = "\n".join(f"{message['role']}: {message['content']}" for message in messages)
+        prompt = (
+            "Update compressed Russian summary for Telegram chat memory.\n"
+            "Keep names, facts, user preferences, decisions, tasks, and unresolved requests.\n"
+            "Drop filler and repeated wording.\n\n"
+            f"Existing summary:\n{existing_summary or '(empty)'}\n\n"
+            f"New messages to compress:\n{transcript}\n\n"
+            f"Return only updated summary, max {max_summary_chars} characters."
+        )
+        response = self.client.chat.completions.create(
+            model=self.model,
+            extra_body=THINKING_DISABLED,
+            temperature=0,
+            max_tokens=700,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        summary = response.choices[0].message.content.strip() if response.choices else existing_summary
+        return summary[:max_summary_chars]
+
 
 class AgentApp:
     def __init__(self) -> None:
@@ -379,14 +442,38 @@ class AgentApp:
             path=Path(os.getenv("BOT_HISTORY_FILE", DEFAULT_HISTORY_FILE)),
             max_messages=parse_positive_int(os.getenv("MAX_STORED_MESSAGES"), DEFAULT_MAX_STORED_MESSAGES),
         )
+        self.recent_messages = parse_positive_int(os.getenv("RECENT_MESSAGES_LIMIT"), DEFAULT_RECENT_MESSAGES)
+        self.summary_batch_size = parse_positive_int(os.getenv("SUMMARY_BATCH_SIZE"), DEFAULT_SUMMARY_BATCH_SIZE)
+        self.max_summary_chars = parse_positive_int(os.getenv("MAX_SUMMARY_CHARS"), DEFAULT_MAX_SUMMARY_CHARS)
         self._lock = RLock()
 
     def process_user_request(self, chat_id: int, user_request: str) -> AgentResponse:
         with self._lock:
+            summary, recent, compressed_messages = self.history_store.get_context(chat_id)
             history = self.history_store.get_history(chat_id)
             response = self.agent.handle(user_request=user_request, history=history)
+            response = replace(
+                response,
+                summary_tokens=self.agent.token_counter.count_text(summary),
+                recent_messages=len(recent),
+                compressed_messages=compressed_messages,
+                summary_chars=len(summary),
+            )
             self.history_store.append_exchange(chat_id, user_request, response.answer)
+            try:
+                self.compress_if_needed(chat_id)
+            except Exception:
+                logger.exception("History compression failed")
             return response
+
+    def compress_if_needed(self, chat_id: int) -> None:
+        summary, messages, _ = self.history_store.get_context(chat_id)
+        while len(messages) > self.recent_messages:
+            old_count = len(messages) - self.recent_messages
+            batch = messages[: min(self.summary_batch_size, old_count)]
+            summary = self.agent.summarize(summary, batch, self.max_summary_chars)
+            messages = messages[len(batch) :]
+            self.history_store.replace_context(chat_id, summary, messages, len(batch))
 
     def clear_history(self, chat_id: int) -> None:
         with self._lock:
@@ -401,6 +488,29 @@ def get_agent_app() -> AgentApp:
     if agent_app is None:
         agent_app = AgentApp()
     return agent_app
+
+
+def format_agent_response(response: AgentResponse) -> str:
+    answer = response.answer or "DeepSeek returned an empty response."
+    stats = response.token_stats
+    lines = [
+        answer,
+        "",
+        "Токены:",
+        f"- текущий запрос: ~{stats.current_request_tokens}",
+        f"- история в prompt: ~{stats.history_tokens}",
+        f"- summary: ~{response.summary_tokens}",
+        f"- prompt всего: {stats.prompt_tokens_actual or '~' + str(stats.prompt_tokens_estimate)}",
+        f"- ответ модели: {stats.response_tokens_actual or '~' + str(stats.response_tokens_estimate)}",
+        f"- остаток контекста: ~{stats.context_remaining_estimate} из {stats.context_limit}",
+        f"- стоимость запроса: ~${stats.cost_usd_estimate:.6f}",
+        "",
+        "Сжатие истории:",
+        f"- последние сообщения как есть: {response.recent_messages}",
+        f"- сжато в summary: {response.compressed_messages}",
+        f"- summary chars: {response.summary_chars}",
+    ]
+    return "\n".join(lines)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -459,6 +569,16 @@ async def day8_degrade(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     report = await asyncio.to_thread(run_context_degradation_demo)
     await reply_long(update, report)
+
+
+async def day9_compression(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    del context
+    if not update.message:
+        return
+
+    from day9_compression_demo import build_day9_report
+
+    await reply_long(update, build_day9_report())
 
 
 async def reply_long(update: Update, text: str) -> None:
@@ -527,6 +647,7 @@ def main() -> None:
     application.add_handler(CommandHandler("tokens", day8_tokens))
     application.add_handler(CommandHandler("day8_api", day8_api_overflow))
     application.add_handler(CommandHandler("day8_degrade", day8_degrade))
+    application.add_handler(CommandHandler("day9", day9_compression))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
     logger.info("Bot is running in polling mode")
