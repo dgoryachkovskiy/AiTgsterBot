@@ -27,6 +27,7 @@ DEFAULT_MAX_OUTPUT_TOKENS = 1024
 DEFAULT_RECENT_MESSAGES = 10
 DEFAULT_SUMMARY_BATCH_SIZE = 10
 DEFAULT_MAX_SUMMARY_CHARS = 4000
+DEFAULT_DAY10_CONTEXT_FILE = "day10_context.json"
 TOKEN_OVERHEAD_PER_MESSAGE = 4
 
 MODEL_PRICING_USD_PER_1M = {
@@ -445,10 +446,22 @@ class AgentApp:
         self.recent_messages = parse_positive_int(os.getenv("RECENT_MESSAGES_LIMIT"), DEFAULT_RECENT_MESSAGES)
         self.summary_batch_size = parse_positive_int(os.getenv("SUMMARY_BATCH_SIZE"), DEFAULT_SUMMARY_BATCH_SIZE)
         self.max_summary_chars = parse_positive_int(os.getenv("MAX_SUMMARY_CHARS"), DEFAULT_MAX_SUMMARY_CHARS)
+        from day10_context_strategies import Day10MemoryStore
+
+        self.day10_store = Day10MemoryStore(
+            Path(os.getenv("DAY10_CONTEXT_FILE", DEFAULT_DAY10_CONTEXT_FILE)),
+            recent_messages=self.recent_messages,
+        )
         self._lock = RLock()
 
     def process_user_request(self, chat_id: int, user_request: str) -> AgentResponse:
         with self._lock:
+            if self.day10_store.is_enabled(chat_id):
+                history = self.day10_store.build_history(chat_id)
+                response = self.agent.handle(user_request=user_request, history=history)
+                self.day10_store.append_exchange(chat_id, user_request, response.answer)
+                return replace(response, recent_messages=len(history), compressed_messages=0, summary_chars=0)
+
             summary, recent, compressed_messages = self.history_store.get_context(chat_id)
             history = self.history_store.get_history(chat_id)
             response = self.agent.handle(user_request=user_request, history=history)
@@ -506,6 +519,29 @@ def format_agent_response(response: AgentResponse) -> str:
         f"- стоимость запроса: ~${stats.cost_usd_estimate:.6f}",
         "",
         "Сжатие истории:",
+        f"- последние сообщения как есть: {response.recent_messages}",
+        f"- сжато в summary: {response.compressed_messages}",
+        f"- summary chars: {response.summary_chars}",
+    ]
+    return "\n".join(lines)
+
+
+def format_agent_response(response: AgentResponse) -> str:
+    answer = response.answer or "DeepSeek returned an empty response."
+    stats = response.token_stats
+    lines = [
+        answer,
+        "",
+        "Токены:",
+        f"- текущий запрос: ~{stats.current_request_tokens}",
+        f"- история в prompt: ~{stats.history_tokens}",
+        f"- summary: ~{response.summary_tokens}",
+        f"- prompt всего: {stats.prompt_tokens_actual or '~' + str(stats.prompt_tokens_estimate)}",
+        f"- ответ модели: {stats.response_tokens_actual or '~' + str(stats.response_tokens_estimate)}",
+        f"- остаток контекста: ~{stats.context_remaining_estimate} из {stats.context_limit}",
+        f"- стоимость запроса: ~${stats.cost_usd_estimate:.6f}",
+        "",
+        "Контекст:",
         f"- последние сообщения как есть: {response.recent_messages}",
         f"- сжато в summary: {response.compressed_messages}",
         f"- summary chars: {response.summary_chars}",
@@ -576,9 +612,106 @@ async def day9_compression(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     if not update.message:
         return
 
-    from day9_compression_demo import build_day9_report
+    await update.message.reply_text("Запускаю реальное сравнение Day9 через DeepSeek API.")
+    from day9_deepseek_compare import build_day9_deepseek_report
 
-    await reply_long(update, build_day9_report())
+    report = await asyncio.to_thread(build_day9_deepseek_report)
+    await reply_long(update, report)
+
+
+async def day10_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    del context
+    if not update.message:
+        return
+
+    await update.message.reply_text("Запускаю реальное сравнение Day10 через DeepSeek API.")
+    from day10_deepseek_compare import build_day10_deepseek_report
+
+    report = await asyncio.to_thread(build_day10_deepseek_report)
+    await reply_long(update, report)
+
+
+async def day10_api_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    del context
+    if not update.message:
+        return
+
+    await update.message.reply_text("Запускаю реальное сравнение Day10 через DeepSeek API.")
+    from day10_deepseek_compare import build_day10_deepseek_report
+
+    report = await asyncio.to_thread(build_day10_deepseek_report)
+    await reply_long(update, report)
+
+
+async def strategy_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not update.effective_chat or not update.message:
+        return
+    if not context.args:
+        await update.message.reply_text(
+            "Используй: /strategy sliding|facts|branching|off\n"
+            + get_agent_app().day10_store.status(update.effective_chat.id)
+        )
+        return
+    strategy = context.args[0].strip().lower()
+    store = get_agent_app().day10_store
+    if strategy == "off":
+        store.disable(update.effective_chat.id)
+        await update.message.reply_text("Day10 strategies выключены. Бот вернулся к обычной памяти.")
+        return
+    try:
+        store.enable(update.effective_chat.id, strategy)
+    except ValueError as error:
+        await update.message.reply_text(str(error))
+        return
+    await update.message.reply_text("Стратегия включена:\n" + store.status(update.effective_chat.id))
+
+
+async def day10_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    del context
+    if not update.effective_chat or not update.message:
+        return
+    await update.message.reply_text(get_agent_app().day10_store.status(update.effective_chat.id))
+
+
+async def checkpoint_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not update.effective_chat or not update.message:
+        return
+    name = context.args[0] if context.args else "checkpoint"
+    store = get_agent_app().day10_store
+    store.create_checkpoint(update.effective_chat.id, name)
+    await update.message.reply_text(f"Checkpoint saved: {name}\n" + store.status(update.effective_chat.id))
+
+
+async def branch_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not update.effective_chat or not update.message:
+        return
+    if not context.args:
+        await update.message.reply_text("Используй: /branch NAME [CHECKPOINT]")
+        return
+    name = context.args[0]
+    checkpoint_name = context.args[1] if len(context.args) > 1 else None
+    store = get_agent_app().day10_store
+    try:
+        store.create_branch(update.effective_chat.id, name, checkpoint_name)
+    except ValueError as error:
+        await update.message.reply_text(str(error))
+        return
+    await update.message.reply_text(f"Branch active: {name}\n" + store.status(update.effective_chat.id))
+
+
+async def switch_branch_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not update.effective_chat or not update.message:
+        return
+    if not context.args:
+        await update.message.reply_text("Используй: /switch_branch NAME")
+        return
+    store = get_agent_app().day10_store
+    try:
+        store.switch_branch(update.effective_chat.id, context.args[0])
+    except ValueError as error:
+        await update.message.reply_text(str(error))
+        return
+    await update.message.reply_text("Switched:\n" + store.status(update.effective_chat.id))
 
 
 async def reply_long(update: Update, text: str) -> None:
@@ -648,6 +781,13 @@ def main() -> None:
     application.add_handler(CommandHandler("day8_api", day8_api_overflow))
     application.add_handler(CommandHandler("day8_degrade", day8_degrade))
     application.add_handler(CommandHandler("day9", day9_compression))
+    application.add_handler(CommandHandler("day10", day10_report))
+    application.add_handler(CommandHandler("day10_api", day10_api_report))
+    application.add_handler(CommandHandler("strategy", strategy_command))
+    application.add_handler(CommandHandler("day10_status", day10_status))
+    application.add_handler(CommandHandler("checkpoint", checkpoint_command))
+    application.add_handler(CommandHandler("branch", branch_command))
+    application.add_handler(CommandHandler("switch_branch", switch_branch_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
     logger.info("Bot is running in polling mode")

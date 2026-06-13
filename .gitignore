@@ -4,4 +4,6 @@ __pycache__/
 *.py[cod]
 chat_history.json
 chat_history.json.tmp
+day10_context.json
+day10_context.json.tmp
 .token_experiment/
