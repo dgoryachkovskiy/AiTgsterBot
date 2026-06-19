@@ -9,4 +9,5 @@ day10_context.json.tmp
 memory_layers_store.json
 memory_layers_store.json.tmp
 memory_layers_store/
+day12_personalization_store/
 .token_experiment/

@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import shutil
+import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -19,6 +20,9 @@ DEFAULT_REPORT_PATH = "MEMORY_LAYERS_REPORT.md"
 DEFAULT_API_TIMEOUT_SECONDS = 20.0
 DEFAULT_API_RETRIES = 2
 THINKING_DISABLED = {"thinking": {"type": "disabled"}}
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 
 MODEL_PRICING_USD_PER_1M = {
     "deepseek-v4-flash": {
