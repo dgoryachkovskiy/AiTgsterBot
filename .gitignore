@@ -12,4 +12,5 @@ memory_layers_store/
 day12_personalization_store/
 day13_task_state_store/
 day14_invariants_store/
+day15_lifecycle_store/
 .token_experiment/
