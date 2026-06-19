@@ -10,4 +10,5 @@ memory_layers_store.json
 memory_layers_store.json.tmp
 memory_layers_store/
 day12_personalization_store/
+day13_task_state_store/
 .token_experiment/
