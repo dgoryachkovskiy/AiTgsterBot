@@ -6,4 +6,7 @@ chat_history.json
 chat_history.json.tmp
 day10_context.json
 day10_context.json.tmp
+memory_layers_store.json
+memory_layers_store.json.tmp
+memory_layers_store/
 .token_experiment/
