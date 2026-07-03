@@ -12,8 +12,8 @@
 - route_ok: `True`
 - order_ok: `True`
 - all_steps_ok: `True`
-- saved_json: `/opt/day19-worldcup-pipeline-mcp/data/summaries/worldcup_pipeline_20260628T084556Z-95b0ef82.json`
-- saved_markdown: `/opt/day19-worldcup-pipeline-mcp/data/summaries/worldcup_pipeline_20260628T084556Z-95b0ef82.md`
+- saved_json: `/opt/day19-worldcup-pipeline-mcp/data/summaries/worldcup_pipeline_20260628T085554Z-75310c01.json`
+- saved_markdown: `/opt/day19-worldcup-pipeline-mcp/data/summaries/worldcup_pipeline_20260628T085554Z-75310c01.md`
 
 ## Servers
 
@@ -54,7 +54,7 @@
       "owner": "python",
       "repo": "cpython"
     },
-    "reason": "Получить сводку репозитория python/cpython для отчёта."
+    "reason": "Получить сводку репозитория python/cpython для отчета."
   },
   {
     "server_id": "worldcup_scheduler",
@@ -74,7 +74,7 @@
       "style": "short_ru",
       "filename_prefix": "worldcup_pipeline"
     },
-    "reason": "Запустить полный пайплайн ЧМ: поиск, суммаризация и сохранение в файлы."
+    "reason": "Запустить полный пайплайн: поиск, суммаризация и сохранение футбольных данных."
   }
 ]
 ```
@@ -93,7 +93,7 @@
       "repo": "cpython"
     },
     "ok": true,
-    "elapsed_seconds": 0.9734118999913335,
+    "elapsed_seconds": 1.0072397000622004,
     "result": {
       "source": "github_public_api",
       "owner": "python",
@@ -101,12 +101,12 @@
       "full_name": "python/cpython",
       "name": "cpython",
       "description": "The Python programming language",
-      "stars": 73543,
+      "stars": 73549,
       "forks": 34787,
-      "open_issues": 9440,
+      "open_issues": 9441,
       "language": "Python",
       "license": "NOASSERTION",
-      "updated_at": "2026-06-28T08:43:46Z",
+      "updated_at": "2026-06-28T08:55:33Z",
       "html_url": "https://github.com/python/cpython"
     },
     "error": ""
@@ -121,13 +121,13 @@
       "force_refresh": true
     },
     "ok": true,
-    "elapsed_seconds": 1.735080200014636,
+    "elapsed_seconds": 1.2469462999142706,
     "result": {
       "scheduler": {
         "enabled": true,
         "refresh_seconds": 7200,
         "store_path": "/opt/day18-worldcup-mcp/data/worldcup_summary.json",
-        "last_fetched_at": "2026-06-28T08:45:55+00:00",
+        "last_fetched_at": "2026-06-28T08:55:53+00:00",
         "force_refresh_used": true
       },
       "source": "espn_scoreboard_api",
@@ -504,9 +504,9 @@
       "filename_prefix": "worldcup_pipeline"
     },
     "ok": true,
-    "elapsed_seconds": 1.398688499815762,
+    "elapsed_seconds": 1.5632146999705583,
     "result": {
-      "pipeline_id": "20260628T084556Z-95b0ef82",
+      "pipeline_id": "20260628T085554Z-75310c01",
       "step": "run_worldcup_pipeline",
       "source_url": "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard",
       "automatic_chain": [
@@ -515,11 +515,11 @@
         "save_worldcup_summary"
       ],
       "search": {
-        "pipeline_id": "20260628T084556Z-95b0ef82",
+        "pipeline_id": "20260628T085554Z-75310c01",
         "step": "search_worldcup_matches",
         "source": "espn_scoreboard_api",
         "source_url": "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard",
-        "fetched_at": "2026-06-28T08:45:56+00:00",
+        "fetched_at": "2026-06-28T08:55:54+00:00",
         "requested_days": [
           "2026-06-27",
           "2026-06-28",
@@ -1304,11 +1304,11 @@
         }
       },
       "summary": {
-        "pipeline_id": "20260628T084556Z-95b0ef82",
-        "source_pipeline_id": "20260628T084556Z-95b0ef82",
+        "pipeline_id": "20260628T085554Z-75310c01",
+        "source_pipeline_id": "20260628T085554Z-75310c01",
         "step": "summarize_worldcup_matches",
         "style": "short_ru",
-        "generated_at": "2026-06-28T08:45:56+00:00",
+        "generated_at": "2026-06-28T08:55:54+00:00",
         "summary_text": "Found 22 World Cup matches. Completed: 6. Live: 0. Scheduled: 16. Latest results: Croatia 2 - 1 Ghana; Panama 0 - 2 England; Colombia 0 - 0 Portugal; Congo DR 3 - 1 Uzbekistan. Next matches: Canada at South Africa (Sun, June 28th at 3:00 PM EDT); Japan at Brazil (Mon, June 29th at 1:00 PM EDT); Paraguay at Germany (Mon, June 29th at 4:30 PM EDT); Morocco at Netherlands (Mon, June 29th at 9:00 PM EDT).",
         "aggregate": {
           "total_matches": 22,
@@ -1480,11 +1480,11 @@
         ]
       },
       "saved": {
-        "pipeline_id": "20260628T084556Z-95b0ef82",
+        "pipeline_id": "20260628T085554Z-75310c01",
         "step": "save_worldcup_summary",
-        "saved_at": "2026-06-28T08:45:56+00:00",
-        "saved_json": "/opt/day19-worldcup-pipeline-mcp/data/summaries/worldcup_pipeline_20260628T084556Z-95b0ef82.json",
-        "saved_markdown": "/opt/day19-worldcup-pipeline-mcp/data/summaries/worldcup_pipeline_20260628T084556Z-95b0ef82.md",
+        "saved_at": "2026-06-28T08:55:54+00:00",
+        "saved_json": "/opt/day19-worldcup-pipeline-mcp/data/summaries/worldcup_pipeline_20260628T085554Z-75310c01.json",
+        "saved_markdown": "/opt/day19-worldcup-pipeline-mcp/data/summaries/worldcup_pipeline_20260628T085554Z-75310c01.md",
         "summary_bytes": 5692,
         "markdown_bytes": 1562
       }
@@ -1498,11 +1498,11 @@
 
 ```json
 {
-  "answer": "Отлично, вот краткое объяснение выполненного пайплайна.\n\n**Использованные MCP-серверы (3):**\n1.  **`github`** — для получения сводки по репозиторию Python.\n2.  **`worldcup_scheduler`** — для получения агрегированной сводки матчей ЧМ-2026 от фонового планировщика.\n3.  **`worldcup_pipeline`** — для запуска полного цикла обработки данных ЧМ (поиск, суммаризация, сохранение).\n\n**Порядок выполнения:**\n1.  **GitHub** (первый) — получение метаданных репозитория `python/cpython` (звёзды, форки, описание). Это независимый запрос, не связанный с футболом.\n2.  **WorldCup Scheduler** (второй) — принудительное обновление и получение сводки от планировщика (10 матчей, 6 завершённых). Это быстрый срез данных.\n3.  **WorldCup Pipeline** (третий) — запуск полного пайплайна, который внутри себя выполнил три шага: поиск матчей (22 матча), создание краткой сводки (`short_ru`) и сохранение результатов в JSON и Markdown.\n\n**Что вернул каждый tool:**\n*   **`get_github_repo_summary`**: JSON с данными репозитория (название, описание, 73.5k звёзд, 34.8k форков, лицензия).\n*   **`get_worldcup_match_summary`**: JSON с агрегированной сводкой от планировщика (10 матчей, список последних результатов и ближайших игр).\n*   **`run_worldcup_pipeline`**: JSON с результатами всех трёх внутренних шагов: поиск (22 матча), суммаризация (текст сводки на русском), сохранение (пути к файлам).\n\n**Где сохранён результат:**\nФинальные файлы сохранены на сервере `worldcup_pipeline` по путям:\n*   **JSON**: `/opt/day19-worldcup-pipeline-mcp/data/summaries/worldcup_pipeline_20260628T084556Z-95b0ef82.json`\n*   **Markdown**: `/opt/day19-worldcup-pipeline-mcp/data/summaries/worldcup_pipeline_20260628T084556Z-95b0ef82.md`\n\nВсе три шага выполнены успешно.",
-  "prompt_tokens": 15295,
-  "completion_tokens": 600,
-  "total_tokens": 15895,
-  "elapsed_seconds": 5.991216100053862,
+  "answer": "Отлично, вот краткое объяснение по каждому пункту.\n\n### Использованные MCP-серверы\n\n1.  **`github`** (`http://138.16.168.37:8000/mcp`): Предоставляет инструмент `get_github_repo_summary` для получения информации о публичных репозиториях GitHub.\n2.  **`worldcup_scheduler`** (`http://138.16.168.37:8002/mcp`): Предоставляет инструмент `get_worldcup_match_summary` для получения агрегированной сводки матчей ЧМ, которая периодически обновляется фоновым планировщиком.\n3.  **`worldcup_pipeline`** (`http://138.16.168.37:8004/mcp`): Предоставляет набор инструментов для полноценного пайплайна обработки данных ЧМ: поиск (`search_worldcup_matches`), суммаризация (`summarize_worldcup_matches`) и сохранение результатов (`save_worldcup_summary`), а также единый инструмент для запуска всего пайплайна (`run_worldcup_pipeline`).\n\n### Почему выбран такой порядок\n\nПорядок шагов логичен и соответствует цели — собрать разностороннюю информацию и сохранить результат:\n\n1.  **Шаг 1 (github)**: Первым делом получаем данные о репозитории `python/cpython`. Это независимый запрос, не требующий данных от других серверов.\n2.  **Шаг 2 (worldcup_scheduler)**: Затем получаем сводку матчей ЧМ от планировщика. Это тоже независимый запрос, который дает быстрый обзор текущей ситуации.\n3.  **Шаг 3 (worldcup_pipeline)**: После получения контекста запускаем полный пайплайн. Он использует `run_worldcup_pipeline`, который внутри себя последовательно выполняет поиск, суммаризацию и сохранение. Этот шаг зависит от данных ESPN, но не от результатов предыдущих шагов.\n\n### Что вернул каждый tool\n\n*   **`get_github_repo_summary`**: Вернул метаданные репозитория `python/cpython`: описание, количество звезд (73,549), форков (34,787), открытых issues (9,441), лицензию и т.д.\n*   **`get_worldcup_match_summary`**: Вернул агрегированную сводку от планировщика: 10 матчей (6 завершено, 4 запланировано), список последних результатов и ближайших матчей, а также детальный список всех 10 матчей.\n*   **`run_worldcup_pipeline`**: Выполнил полный цикл:\n    *   **Поиск**: Нашел 22 матча (6 завершено, 16 запланировано) за период с 27 июня по 4 июля.\n    *   **Суммаризация**: Создал текстовую сводку на русском языке (`short_ru`) с ключевыми результатами и ближайшими матчами.\n    *   **Сохранение**: Сохранил результаты в JSON и Markdown файлы.\n\n### Где сохранен результат pipeline\n\nРезультаты работы пайплайна сохранены в двух файлах на сервере `worldcup_pipeline`:\n\n*   **JSON**: `/opt/day19-worldcup-pipeline-mcp/data/summaries/worldcup_pipeline_20260628T085554Z-75310c01.json`\n*   **Markdown**: `/opt/day19-worldcup-pipeline-mcp/data/summaries/worldcup_pipeline_20260628T085554Z-75310c01.md`\n\nЭти пути указаны в результатах шага 3 (в поле `saved`).",
+  "prompt_tokens": 15287,
+  "completion_tokens": 874,
+  "total_tokens": 16161,
+  "elapsed_seconds": 8.623816099949181,
   "attempts": 1,
   "error": ""
 }
