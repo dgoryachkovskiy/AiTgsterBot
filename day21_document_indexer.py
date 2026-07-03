@@ -847,7 +847,16 @@ def command_search(args: argparse.Namespace) -> int:
 def command_check_ollama(args: argparse.Namespace) -> int:
     del args
     embedder = OllamaEmbedder(ollama_base_url_from_env(), ollama_model_from_env(), ollama_timeout_from_env())
-    vector = embedder.embed("AstroTarot email verification code")
+    try:
+        vector = embedder.embed("AstroTarot email verification code")
+    except RuntimeError:
+        print("ollama_connected=False")
+        print(f"ollama_url={embedder.base_url}")
+        print(f"ollama_model={embedder.model}")
+        print("fix:")
+        print("  ollama serve")
+        print(f"  ollama pull {embedder.model}")
+        return 2
     print("ollama_connected=True")
     print(f"ollama_url={embedder.base_url}")
     print(f"ollama_model={embedder.model}")
