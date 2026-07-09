@@ -22,4 +22,5 @@ day24_rag_store/
 day25_chat_store/
 day26_local_llm_store/
 day27_local_llm_app_store/
+day28_local_rag_store/
 .token_experiment/
