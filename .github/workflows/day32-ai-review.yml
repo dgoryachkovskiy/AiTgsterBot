@@ -1,0 +1,93 @@
+name: Day32 AI Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  ai-review:
+    name: AI review
+    runs-on: ubuntu-latest
+    env:
+      DEEPSEEK_API_KEY: ${{ secrets.DEPSEEK }}
+      DAY32_EMBEDDER: hash
+      DAY32_DEEPSEEK_MODEL: deepseek-v4-flash
+      DAY32_INDEX_DIR: day32_code_review_index_store
+      DAY32_STORE_DIR: day32_code_review_store
+
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch base branch
+        run: git fetch origin "${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}" --prune
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Check DeepSeek secret
+        run: |
+          if [ -z "$DEEPSEEK_API_KEY" ]; then
+            echo "::error::GitHub repository secret DEPSEEK is missing or empty. Add it in Settings -> Secrets and variables -> Actions."
+            exit 2
+          fi
+
+      - name: Syntax check
+        run: python -m py_compile day32_code_review_agent.py day32_review_mcp_server.py
+
+      - name: Build RAG index
+        run: python day32_code_review_agent.py index
+
+      - name: Run AI review
+        run: >
+          python day32_code_review_agent.py review
+          --base-ref "origin/${{ github.base_ref }}"
+          --head-ref "HEAD"
+          --output DAY32_AI_REVIEW.md
+
+      - name: Add review to job summary
+        if: always() && hashFiles('DAY32_AI_REVIEW.md') != ''
+        run: cat DAY32_AI_REVIEW.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload review artifact
+        if: always() && hashFiles('DAY32_AI_REVIEW.md') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: day32-ai-review
+          path: DAY32_AI_REVIEW.md
+
+      - name: Publish PR comment
+        if: always() && hashFiles('DAY32_AI_REVIEW.md') != '' && github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- day32-ai-review -->';
+            const review = fs.readFileSync('DAY32_AI_REVIEW.md', 'utf8');
+            const maxBody = 60000;
+            const visibleReview = review.length > maxBody
+              ? `${review.slice(0, maxBody)}\n\n_Review truncated in PR comment. Full report is available in the day32-ai-review artifact._`
+              : review;
+            const body = `${marker}\n${visibleReview}`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.rest.issues.listComments({ owner, repo, issue_number, per_page: 100 });
+            const previous = comments.data.find(comment => comment.user.type === 'Bot' && comment.body.includes(marker));
+            if (previous) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: previous.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
