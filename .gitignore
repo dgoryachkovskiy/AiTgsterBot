@@ -23,4 +23,8 @@ day25_chat_store/
 day26_local_llm_store/
 day27_local_llm_app_store/
 day28_local_rag_store/
+day29_optimization_store/
+day30_private_llm_store/
+day31_project_index_store/
+day31_project_assistant_store/
 .token_experiment/
