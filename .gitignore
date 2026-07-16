@@ -27,4 +27,6 @@ day29_optimization_store/
 day30_private_llm_store/
 day31_project_index_store/
 day31_project_assistant_store/
+day32_code_review_index_store/
+day32_code_review_store/
 .token_experiment/
