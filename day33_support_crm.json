@@ -1,0 +1,149 @@
+{
+  "generated_for": "Day33 support assistant CRM JSON",
+  "product": "AiTgsterBot",
+  "users": [
+    {
+      "user_id": "u1001",
+      "name": "Ivan Petrov",
+      "telegram_chat_id": "1001001",
+      "plan": "training-pro",
+      "timezone": "Europe/Moscow",
+      "registered_at": "2026-06-01T09:30:00Z",
+      "preferences": {
+        "language": "ru",
+        "answer_style": "short_steps",
+        "needs_sources": true
+      },
+      "environment": {
+        "os": "Windows 11",
+        "python": "3.13",
+        "launch": ".venv\\Scripts\\python.exe bot.py"
+      }
+    },
+    {
+      "user_id": "u1002",
+      "name": "Maria Sokolova",
+      "telegram_chat_id": "1001002",
+      "plan": "training-basic",
+      "timezone": "Europe/Moscow",
+      "registered_at": "2026-06-10T12:00:00Z",
+      "preferences": {
+        "language": "ru",
+        "answer_style": "diagnostic",
+        "needs_sources": true
+      },
+      "environment": {
+        "os": "Windows 10",
+        "python": "3.12",
+        "launch": ".venv\\Scripts\\python.exe bot.py"
+      }
+    },
+    {
+      "user_id": "u1003",
+      "name": "Oleg Morozov",
+      "telegram_chat_id": "1001003",
+      "plan": "training-pro",
+      "timezone": "Europe/Moscow",
+      "registered_at": "2026-06-15T18:45:00Z",
+      "preferences": {
+        "language": "ru",
+        "answer_style": "explain_then_command",
+        "needs_sources": true
+      },
+      "environment": {
+        "os": "Ubuntu 26.04",
+        "python": "3.14",
+        "launch": "python3 bot.py"
+      }
+    }
+  ],
+  "tickets": [
+    {
+      "ticket_id": "t9001",
+      "user_id": "u1001",
+      "status": "open",
+      "priority": "high",
+      "channel": "telegram",
+      "subject": "Бот не отвечает после запуска",
+      "description": "Пользователь запускает bot.py, но Telegram-бот не отвечает на /start и обычные сообщения.",
+      "tags": ["telegram", "startup", "token", "bot"],
+      "created_at": "2026-07-15T08:10:00Z",
+      "last_event_at": "2026-07-15T08:25:00Z",
+      "events": [
+        {
+          "at": "2026-07-15T08:10:00Z",
+          "type": "user_message",
+          "text": "Запускаю .venv\\Scripts\\python.exe bot.py, ошибок не вижу, но /start молчит."
+        },
+        {
+          "at": "2026-07-15T08:18:00Z",
+          "type": "support_note",
+          "text": "Проверить TELEGRAM_BOT_TOKEN, что запущен именно актуальный bot.py, и что в Telegram открыт правильный бот."
+        },
+        {
+          "at": "2026-07-15T08:25:00Z",
+          "type": "user_message",
+          "text": "В .env токен есть, но я недавно перевыпустил токен у BotFather."
+        }
+      ]
+    },
+    {
+      "ticket_id": "t9002",
+      "user_id": "u1002",
+      "status": "open",
+      "priority": "medium",
+      "channel": "telegram",
+      "subject": "Команда /day10 отвечает слишком быстро и кажется без DeepSeek",
+      "description": "Пользователь ожидает сравнение стратегий через DeepSeek, но подозревает локальный ответ.",
+      "tags": ["day10", "deepseek", "context_strategies"],
+      "created_at": "2026-07-14T14:40:00Z",
+      "last_event_at": "2026-07-14T15:00:00Z",
+      "events": [
+        {
+          "at": "2026-07-14T14:40:00Z",
+          "type": "user_message",
+          "text": "Мне нужно, чтобы Day10 сравнивал стратегии именно через DeepSeek."
+        },
+        {
+          "at": "2026-07-14T14:50:00Z",
+          "type": "support_note",
+          "text": "Проверить DEEPSEEK_API_KEY, команду /day10 или /day10_api, а также токены в выводе CLI day10_deepseek_compare.py."
+        },
+        {
+          "at": "2026-07-14T15:00:00Z",
+          "type": "user_message",
+          "text": "В Telegram хочу видеть вывод по Sliding Window, Facts и Branching."
+        }
+      ]
+    },
+    {
+      "ticket_id": "t9003",
+      "user_id": "u1003",
+      "status": "resolved",
+      "priority": "low",
+      "channel": "cli",
+      "subject": "История диалога не восстановилась после перезапуска",
+      "description": "Пользователь проверяет сохранение контекста и не видит прошлые сообщения после restart.",
+      "tags": ["context", "history", "memory", "json"],
+      "created_at": "2026-07-12T11:20:00Z",
+      "last_event_at": "2026-07-12T12:05:00Z",
+      "events": [
+        {
+          "at": "2026-07-12T11:20:00Z",
+          "type": "user_message",
+          "text": "После перезапуска бот не помнит предыдущее сообщение."
+        },
+        {
+          "at": "2026-07-12T11:40:00Z",
+          "type": "support_note",
+          "text": "Проверить BOT_HISTORY_FILE, права на запись, chat_history.json и reset-команду."
+        },
+        {
+          "at": "2026-07-12T12:05:00Z",
+          "type": "resolution",
+          "text": "Причина: запуск из другой рабочей директории, история писалась в другой chat_history.json."
+        }
+      ]
+    }
+  ]
+}
